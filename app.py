@@ -4,6 +4,7 @@ import torch
 from transformers import BertTokenizer, BertForSequenceClassification
 from lime.lime_text import LimeTextExplainer
 import matplotlib.pyplot as plt
+import plotly.graph_objs as go
 
 # Load an image
 logo = Image.open("TikTok-logo.png")
@@ -30,44 +31,59 @@ model, tokenizer = load_model()
 explainer = LimeTextExplainer(class_names=["Hateful", "Normal", "Offensive"])
 
 def predict_and_explain(text):
-    # Prepare the text input for BERT
-    inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=180)
+    # Check if the input text is empty or too short
+    if not text.strip():  # This checks for empty or whitespace-only strings
+        st.warning("Please enter a valid text for prediction.")
+        return None, None, None
 
-    # Disable gradient calculation
-    with torch.no_grad():
-        outputs = model(**inputs)
+    try:
+        # Prepare the text input for BERT
+        inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=180)
 
-    # Get the predictions
-    logits = outputs.logits
-    probabilities = torch.softmax(logits, dim=1)
-    max_prob, predicted_label = torch.max(probabilities, dim=1)
+        # Disable gradient calculation
+        with torch.no_grad():
+            outputs = model(**inputs)
 
-    # Generate LIME explanation
-    exp = explainer.explain_instance(text, 
-                                     lambda x: torch.softmax(model(**tokenizer(x, return_tensors='pt', padding=True, truncation=True)).logits, dim=1).detach().numpy(),
-                                     num_features=6,
-                                     num_samples=100,  # Adjust the number of samples for faster execution if needed
-                                     top_labels=1)
+        # Get the predictions
+        logits = outputs.logits
+        probabilities = torch.softmax(logits, dim=1)
+        max_prob, predicted_label = torch.max(probabilities, dim=1)
 
-    # Display LIME explanation in the Streamlit app
-    # st.markdown("### Text with highlighted words")
-    fig = exp.as_pyplot_figure(label=predicted_label.item())
-    # st.pyplot(fig)
-    #st.markdown(exp.as_html(), unsafe_allow_html=True)
+        # Generate LIME explanation
+        exp = explainer.explain_instance(text, 
+                                         lambda x: torch.softmax(model(**tokenizer(x, return_tensors='pt', padding=True, truncation=True)).logits, dim=1).detach().numpy(),
+                                         num_features=6,
+                                         num_samples=100,  # Adjust the number of samples for faster execution if needed
+                                         top_labels=1)
 
+        # Convert LIME explanation to Plotly figure (horizontal bar chart)
+        exp_list = exp.as_list(label=predicted_label.item())
+        features = [x[0] for x in exp_list]
+        importances = [x[1] for x in exp_list]
+        colors = ['green' if x > 0 else 'red' for x in importances]
+        
+        fig = go.Figure([go.Bar(x=importances, y=features, orientation='h', marker_color=colors)])
+        fig.update_layout(title='Word Importance Towards The Final Output',
+                          xaxis_title='Importance',
+                          yaxis_title='Words',
+                          yaxis=dict(autorange="reversed"))  # Ensure that the most important feature appears on top
 
-    return predicted_label, max_prob.numpy()[0], fig
+        return predicted_label, max_prob.numpy()[0], fig
+    except Exception as e:
+        st.error(f"Prediction or explanation failed: {e}")
+        return None, None, None
+
 
 def on_predict():
     # Handler for the predict button
     label, confidence, fig = predict_and_explain(st.session_state.text)
     emoji, label_description = get_emoji(label)
     confidence = round(confidence * 100, 2)
+    st.markdown("### Explanability")
+    
+    st.plotly_chart(fig)
     st.session_state.results = f'{emoji}  {label_description} with Confidence: **{confidence}%**'
-    st.markdown("### Text with highlighted words")
-
-    st.pyplot(fig)
-
+    #st.markdown(st.session_state.results, unsafe_allow_html=True)
 
 
 def get_emoji(label):
