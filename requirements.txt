@@ -1,5 +1,5 @@
 numpy
-streamlit==1.4.0
+streamlit
 pillow
 torch
 transformers
