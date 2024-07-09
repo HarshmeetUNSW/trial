@@ -1,7 +1,7 @@
-numpy
-streamlit
-pillow
-torch
-transformers
+torch==1.13.1
+transformers==4.38.0
+numpy==1.21.5
+streamlit==1.19.0
+pillow==10.3.0
+plotly==5.6.0
 lime
-plotly
