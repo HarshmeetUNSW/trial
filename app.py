@@ -3,7 +3,6 @@ from PIL import Image
 import torch
 from transformers import BertTokenizer, BertForSequenceClassification
 from lime.lime_text import LimeTextExplainer
-import matplotlib.pyplot as plt
 import plotly.graph_objs as go
 
 # Load an image
@@ -18,8 +17,9 @@ with col2:
     st.title('Hate Speech Detector')
 
 # Load the model and tokenizer once
-@st.experimental_memo
+@st.cache_data
 def load_model():
+    print('Once')
     model = BertForSequenceClassification.from_pretrained('final_fine_tuned_bert/')
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
     model.eval()  # Put the model in evaluation mode
@@ -74,18 +74,6 @@ def predict_and_explain(text):
         return None, None, None
 
 
-def on_predict():
-    # Handler for the predict button
-    label, confidence, fig = predict_and_explain(st.session_state.text)
-    emoji, label_description = get_emoji(label)
-    confidence = round(confidence * 100, 2)
-    st.markdown("### Explanability")
-    
-    st.plotly_chart(fig)
-    st.session_state.results = f'{emoji}  {label_description} with Confidence: **{confidence}%**'
-    #st.markdown(st.session_state.results, unsafe_allow_html=True)
-
-
 def get_emoji(label):
     if label == 0:
         return "😡", "Hateful"  # Update label descriptions as per your labels
@@ -94,8 +82,18 @@ def get_emoji(label):
     else:
         return "😠", "Offensive"
 
+def on_predict():
+    text = st.session_state.text
+    if text:
+        label, confidence, fig = predict_and_explain(text)
+        if label is not None:
+            emoji, label_description = get_emoji(label)
+            confidence = round(confidence * 100, 2)
+            st.session_state.results = f'{emoji}  {label_description} with Confidence: **{confidence}%**'
+            st.session_state.fig = fig
+
 # Text input
-st.text_area("Enter Text for Prediction", key="text", on_change=on_predict, args=())
+st.text_area("Enter Text for Prediction", key="text", on_change=on_predict)
 
 # Predict button
 st.button("Predict", on_click=on_predict)
@@ -103,3 +101,4 @@ st.button("Predict", on_click=on_predict)
 # Display results
 if "results" in st.session_state:
     st.markdown(st.session_state.results, unsafe_allow_html=True)
+    st.plotly_chart(st.session_state.fig)
