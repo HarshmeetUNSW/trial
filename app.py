@@ -18,7 +18,7 @@ with col2:
     st.title('Hate Speech Detector')
 
 # Load the model and tokenizer once
-@st.experimental_singleton
+@st.cache_resource 
 def load_model():
     model = BertForSequenceClassification.from_pretrained('final_fine_tuned_bert/')
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
